@@ -1,0 +1,851 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Z3ZUSU - LASER SURVIVAL</title>
+
+<style>
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #050711;
+  font-family: Arial, sans-serif;
+  touch-action: none;
+}
+
+canvas { display: block; }
+
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  color: white;
+}
+
+#timer {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 25px;
+  font-weight: bold;
+  text-shadow: 0 0 12px #00eaff;
+}
+
+#timerLeft {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  font-size: 19px;
+  font-weight: bold;
+}
+
+#speed {
+  position: absolute;
+  top: 57px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 15px;
+  color: #00eaff;
+}
+
+#topButtons {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.topButton {
+  background: #111b2c;
+  border: 1px solid #00eaff;
+  color: white;
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+#controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#joy {
+  display: none;
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  border: 2px solid #00eaff88;
+  background: #00eaff18;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+#stick {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  left: 34px;
+  top: 34px;
+  border-radius: 50%;
+  background: #00eaffaa;
+  border: 2px solid white;
+}
+
+#jump {
+  position: absolute;
+  right: 25px;
+  bottom: 35px;
+  width: 85px;
+  height: 85px;
+  border-radius: 50%;
+  background: #00eaff;
+  border: 3px solid white;
+  color: #06101b;
+  font-weight: bold;
+  font-size: 16px;
+  pointer-events: auto;
+  box-shadow: 0 0 20px #00eaff88;
+}
+
+#menu, #gameOver {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: #050711ee;
+  color: white;
+  z-index: 5;
+  text-align: center;
+}
+
+#menu h1 {
+  font-size: clamp(45px, 10vw, 85px);
+  margin: 15px 0;
+  color: #00eaff;
+  text-shadow: 0 0 25px #00eaff;
+}
+
+#menu h3 {
+  letter-spacing: 5px;
+  color: #aaa;
+}
+
+#play {
+  margin-top: 30px;
+  background: #35ff68;
+  border: none;
+  color: #031006;
+  font-size: 30px;
+  font-weight: 900;
+  padding: 18px 65px;
+  border-radius: 15px;
+  box-shadow: 0 0 25px #35ff68aa;
+}
+
+#gameOver {
+  display: none;
+}
+
+#gameOver h1 {
+  color: #ff3030;
+  font-size: 45px;
+}
+
+#gameOver button {
+  padding: 15px 30px;
+  border: 0;
+  border-radius: 10px;
+  font-weight: bold;
+  font-size: 18px;
+  background: #35ff68;
+}
+
+#finalTime {
+  font-size: 24px;
+  margin: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="menu">
+  <h3>ENTWICKLER JOHN</h3>
+  <h1>Z3ZUSU</h1>
+  <h2>LASER SURVIVAL</h2>
+  <button id="play">PLAY</button>
+</div>
+
+<div id="gameOver">
+  <h1>GAME OVER</h1>
+  <div id="finalTime">0.0s</div>
+  <button id="restart">NOCHMAL</button>
+</div>
+
+<div id="hud">
+  <div id="timer">0.0s</div>
+  <div id="timerLeft">0.0s</div>
+  <div id="speed">SPEED 1.0x</div>
+
+  <div id="topButtons">
+    <button class="topButton" id="colorButton">FARBE</button>
+    <button class="topButton" id="back">MENÜ</button>
+  </div>
+
+  <div id="controls">
+    <div id="joy"><div id="stick"></div></div>
+    <button id="jump">JUMP</button>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from
+'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+const R = 12;
+const PLAYER_SPEED = 10;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050711);
+scene.fog = new THREE.Fog(0x050711, 35, 75);
+
+const camera = new THREE.PerspectiveCamera(
+  38, innerWidth / innerHeight, 0.1, 150
+);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+function updateCamera(){
+  const aspect = innerWidth / innerHeight;
+  camera.aspect = aspect;
+
+  if(aspect < 0.8){
+    camera.fov = 46;
+    camera.position.set(0, 19, 44);
+  } else {
+    camera.fov = 38;
+    camera.position.set(0, 14, 30);
+  }
+
+  camera.lookAt(0,0,0);
+  camera.updateProjectionMatrix();
+}
+
+updateCamera();
+
+scene.add(new THREE.HemisphereLight(0x9bdfff, 0x101020, 2));
+
+const light = new THREE.DirectionalLight(0xffffff, 2);
+light.position.set(5,15,8);
+scene.add(light);
+
+// Plattform
+const platform = new THREE.Mesh(
+  new THREE.CylinderGeometry(R, R, 0.6, 96),
+  new THREE.MeshStandardMaterial({
+    color: 0x101827,
+    metalness: 0.6,
+    roughness: 0.35
+  })
+);
+platform.position.y = -0.35;
+platform.receiveShadow = true;
+scene.add(platform);
+
+// Leuchtender Rand
+const rim = new THREE.Mesh(
+  new THREE.TorusGeometry(R, 0.13, 12, 100),
+  new THREE.MeshBasicMaterial({color:0x00eaff})
+);
+rim.rotation.x = Math.PI/2;
+rim.position.y = 0;
+scene.add(rim);
+
+// Bodengitter
+const grid = new THREE.GridHelper(24, 24, 0x00dfff, 0x17445a);
+grid.position.y = 0.015;
+scene.add(grid);
+
+// SPIELER
+const character = new THREE.Group();
+scene.add(character);
+
+const bodyMaterial = new THREE.MeshStandardMaterial({
+  color: 0x00eaff,
+  emissive: 0x003344,
+  metalness: 0.4,
+  roughness: 0.3
+});
+
+const darkMaterial = new THREE.MeshStandardMaterial({
+  color: 0x101827,
+  metalness: 0.2
+});
+
+const body = new THREE.Mesh(
+  new THREE.BoxGeometry(0.65,0.8,0.42),
+  bodyMaterial
+);
+body.position.y = 0.9;
+character.add(body);
+
+const head = new THREE.Mesh(
+  new THREE.BoxGeometry(0.48,0.48,0.48),
+  new THREE.MeshStandardMaterial({
+    color:0xffffff,
+    emissive:0x222222
+  })
+);
+head.position.y = 1.55;
+character.add(head);
+
+// Gesicht zeigt nach vorne (+Z)
+const eyeMaterial = new THREE.MeshBasicMaterial({color:0x001522});
+
+for(const x of [-0.12,0.12]){
+  const eye = new THREE.Mesh(
+    new THREE.BoxGeometry(0.07,0.07,0.025),
+    eyeMaterial
+  );
+  eye.position.set(x,1.58,0.25);
+  character.add(eye);
+}
+
+const arms = [];
+
+for(const x of [-0.43,0.43]){
+  const arm = new THREE.Mesh(
+    new THREE.BoxGeometry(0.2,0.65,0.2),
+    bodyMaterial
+  );
+  arm.position.set(x,0.95,0);
+  character.add(arm);
+  arms.push(arm);
+}
+
+const legs = [];
+
+for(const x of [-0.19,0.19]){
+  const leg = new THREE.Mesh(
+    new THREE.BoxGeometry(0.22,0.55,0.25),
+    darkMaterial
+  );
+  leg.position.set(x,0.3,0);
+  character.add(leg);
+  legs.push(leg);
+}
+
+// LASER
+const lasers = [];
+
+function createLaser(axis, position, direction){
+  const group = new THREE.Group();
+  scene.add(group);
+
+  const beamMaterial = new THREE.MeshBasicMaterial({
+    color:0xff1111
+  });
+
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color:0xff0000,
+    transparent:true,
+    opacity:0.25
+  });
+
+  const beam = new THREE.Mesh(
+    new THREE.BoxGeometry(1,0.12,0.12),
+    beamMaterial
+  );
+
+  const glow = new THREE.Mesh(
+    new THREE.BoxGeometry(1,0.3,0.3),
+    glowMaterial
+  );
+
+  // WICHTIGER FIX:
+  // Bei Bewegung auf X muss der Laser entlang Z liegen.
+  // Bei Bewegung auf Z muss der Laser entlang X liegen.
+  if(axis === 'x'){
+    beam.rotation.y = Math.PI/2;
+    glow.rotation.y = Math.PI/2;
+  }
+
+  group.add(glow);
+  group.add(beam);
+
+  lasers.push({
+    group,
+    beam,
+    glow,
+    axis,
+    pos:position,
+    direction,
+    speed:3,
+    active:true
+  });
+}
+
+function spawnLaser(){
+  const side = Math.floor(Math.random()*4);
+
+  // Laser fliegen von außen nach innen.
+  if(side === 0) createLaser('x',-R, 1);
+  if(side === 1) createLaser('x', R,-1);
+  if(side === 2) createLaser('z',-R, 1);
+  if(side === 3) createLaser('z', R,-1);
+}
+
+function updateLasers(dt){
+  for(const b of lasers){
+    if(!b.active) continue;
+
+    b.pos += b.direction * b.speed * speed * dt;
+
+    // Länge des Laserstrahls passend zur runden Plattform.
+    const half = Math.sqrt(
+      Math.max(0, R*R - b.pos*b.pos)
+    );
+
+    const beamLength = Math.max(0.1, half*2);
+
+    b.group.position.y = 0.55;
+
+    if(b.axis === 'x'){
+      b.group.position.x = b.pos;
+      b.group.position.z = 0;
+    } else {
+      b.group.position.z = b.pos;
+      b.group.position.x = 0;
+    }
+
+    // Beide Teile werden gleich lang skaliert.
+    b.beam.scale.set(beamLength,1,1);
+    b.glow.scale.set(beamLength,1,1);
+
+    // Kollision
+    const dx = Math.abs(character.position.x-b.group.position.x);
+    const dz = Math.abs(character.position.z-b.group.position.z);
+
+    const hit = b.axis === 'x'
+      ? dx < 0.32 && dz < half
+      : dz < 0.32 && dx < half;
+
+    if(hit && character.position.y < 0.75){
+      gameOver();
+    }
+
+    if(Math.abs(b.pos)>R+2){
+      b.active = false;
+      scene.remove(b.group);
+    }
+  }
+}
+
+// JOYSTICK
+let joyX = 0;
+let joyZ = 0;
+let joyPointer = null;
+
+const joy = document.getElementById('joy');
+const stick = document.getElementById('stick');
+
+function moveJoystick(e){
+  const rect = joy.getBoundingClientRect();
+  const cx = rect.left+rect.width/2;
+  const cy = rect.top+rect.height/2;
+
+  let dx = e.clientX-cx;
+  let dy = e.clientY-cy;
+
+  const max = 43;
+  const length = Math.hypot(dx,dy);
+
+  if(length>max){
+    dx = dx/length*max;
+    dy = dy/length*max;
+  }
+
+  stick.style.transform = `translate(${dx}px,${dy}px)`;
+  joyX = dx/max;
+  joyZ = dy/max;
+}
+
+document.addEventListener('pointerdown',e=>{
+  if(!running) return;
+  if(e.target.closest('#jump,#back,#colorButton')) return;
+  if(joyPointer !== null) return;
+
+  joyPointer = e.pointerId;
+
+  joy.style.display = 'block';
+  joy.style.left = e.clientX+'px';
+  joy.style.top = e.clientY+'px';
+
+  moveJoystick(e);
+});
+
+document.addEventListener('pointermove',e=>{
+  if(e.pointerId === joyPointer){
+    moveJoystick(e);
+  }
+});
+
+function releaseJoystick(e){
+  if(e.pointerId !== joyPointer) return;
+
+  joyPointer = null;
+  joy.style.display = 'none';
+  stick.style.transform = 'translate(0px,0px)';
+  joyX = 0;
+  joyZ = 0;
+}
+
+document.addEventListener('pointerup',releaseJoystick);
+document.addEventListener('pointercancel',releaseJoystick);
+
+// Tastatur
+const keys = {};
+
+document.addEventListener('keydown',e=>{
+  keys[e.key.toLowerCase()] = true;
+});
+
+document.addEventListener('keyup',e=>{
+  keys[e.key.toLowerCase()] = false;
+});
+
+// SPRINGEN
+let jumping = false;
+let doubleJumpUsed = false;
+let jumpElapsed = 0;
+let jumpDuration = 1;
+let jumpHeight = 2.2;
+
+function jump(){
+  if(!running) return;
+
+  if(!jumping){
+    jumping = true;
+    doubleJumpUsed = false;
+    jumpElapsed = 0;
+    jumpDuration = 1;
+    jumpHeight = 2.2;
+  } else if(!doubleJumpUsed){
+    doubleJumpUsed = true;
+    jumpElapsed = 0;
+    jumpDuration = 1.75;
+    jumpHeight = 4.8;
+  }
+}
+
+document.getElementById('jump').addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  jump();
+});
+
+document.addEventListener('keydown',e=>{
+  if(e.code === 'Space'){
+    e.preventDefault();
+    if(!e.repeat) jump();
+  }
+});
+
+// NEON-HINTERGRUNDFARBEN
+const backgroundColors = [
+  0xff1744,
+  0xff7900,
+  0xffea00,
+  0x39ff14,
+  0x00f5ff,
+  0xff00ff,
+  0x7a00ff
+];
+
+let backgroundIndex = 0;
+
+function changeBackground(){
+  backgroundIndex = (backgroundIndex+1)%backgroundColors.length;
+  scene.background.setHex(backgroundColors[backgroundIndex]);
+}
+
+document.getElementById('colorButton').onclick = changeBackground;
+
+// SPIELZUSTAND
+let running = false;
+let elapsed = 0;
+let speed = 1;
+let lastTime = 0;
+let spawnTimer = 0;
+let nextSpawn = 2.5;
+
+function startGame(){
+  elapsed = 0;
+  speed = 1;
+  spawnTimer = 0;
+  nextSpawn = 2.5;
+
+  character.position.set(0,0,0);
+  character.rotation.set(0,0,0);
+
+  for(const b of lasers){
+    scene.remove(b.group);
+  }
+  lasers.length = 0;
+
+  jumping = false;
+  doubleJumpUsed = false;
+  jumpElapsed = 0;
+
+  joyX = 0;
+  joyZ = 0;
+  joyPointer = null;
+  joy.style.display = 'none';
+
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('gameOver').style.display = 'none';
+
+  running = true;
+  lastTime = performance.now();
+
+  startMusic();
+}
+
+function gameOver(){
+  if(!running) return;
+
+  running = false;
+  stopMusic();
+
+  document.getElementById('finalTime').textContent =
+    elapsed.toFixed(1)+' Sekunden';
+
+  document.getElementById('gameOver').style.display = 'flex';
+}
+
+document.getElementById('play').onclick = startGame;
+document.getElementById('restart').onclick = startGame;
+
+document.getElementById('back').onclick = ()=>{
+  running = false;
+  stopMusic();
+  document.getElementById('gameOver').style.display = 'none';
+  document.getElementById('menu').style.display = 'flex';
+};
+
+// SPIELERBEWEGUNG
+function updatePlayer(dt){
+  let x = joyX;
+  let z = joyZ;
+
+  if(keys['w'] || keys['arrowup']) z -= 1;
+  if(keys['s'] || keys['arrowdown']) z += 1;
+  if(keys['a'] || keys['arrowleft']) x -= 1;
+  if(keys['d'] || keys['arrowright']) x += 1;
+
+  const length = Math.hypot(x,z);
+
+  if(length>1){
+    x /= length;
+    z /= length;
+  }
+
+  // 10 Kästchen pro Sekunde
+  character.position.x += x*PLAYER_SPEED*dt;
+  character.position.z += z*PLAYER_SPEED*dt;
+
+  const distance = Math.hypot(
+    character.position.x,
+    character.position.z
+  );
+
+  const maxDistance = R-0.7;
+
+  if(distance>maxDistance){
+    character.position.x *= maxDistance/distance;
+    character.position.z *= maxDistance/distance;
+  }
+
+  // Gesicht zeigt in Laufrichtung
+  if(length>0.1){
+    character.rotation.y = Math.atan2(x,z);
+  }
+
+  // Sprunganimation
+  if(jumping){
+    jumpElapsed += dt;
+
+    const progress = Math.min(jumpElapsed/jumpDuration,1);
+
+    character.position.y =
+      Math.sin(progress*Math.PI)*jumpHeight;
+
+    const swing = Math.sin(progress*Math.PI*2);
+
+    arms[0].rotation.x = swing*0.8;
+    arms[1].rotation.x = -swing*0.8;
+    legs[0].rotation.x = -swing*0.5;
+    legs[1].rotation.x = swing*0.5;
+
+    if(progress>=1){
+      jumping = false;
+      character.position.y = 0;
+      arms.forEach(a=>a.rotation.x=0);
+      legs.forEach(l=>l.rotation.x=0);
+    }
+  } else if(length>0.1){
+    const walk = Math.sin(elapsed*15);
+
+    legs[0].rotation.x = walk*0.65;
+    legs[1].rotation.x = -walk*0.65;
+    arms[0].rotation.x = -walk*0.45;
+    arms[1].rotation.x = walk*0.45;
+  } else {
+    legs.forEach(l=>l.rotation.x=0);
+    arms.forEach(a=>a.rotation.x=0);
+  }
+}
+
+// MUSIK: SCHNELLER UND MEHR BASS
+let audioContext = null;
+let musicTimer = null;
+let musicIndex = 0;
+
+function playBassNote(frequency){
+  if(!audioContext) return;
+
+  const now = audioContext.currentTime;
+
+  const bass = audioContext.createOscillator();
+  const bassGain = audioContext.createGain();
+
+  bass.type = 'sine';
+  bass.frequency.setValueAtTime(frequency,now);
+
+  bassGain.gain.setValueAtTime(0.22,now);
+  bassGain.gain.exponentialRampToValueAtTime(0.001,now+0.3);
+
+  bass.connect(bassGain);
+  bassGain.connect(audioContext.destination);
+
+  bass.start(now);
+  bass.stop(now+0.31);
+
+  const synth = audioContext.createOscillator();
+  const synthGain = audioContext.createGain();
+
+  synth.type = 'sawtooth';
+  synth.frequency.setValueAtTime(frequency*3,now);
+
+  synthGain.gain.setValueAtTime(0.035,now);
+  synthGain.gain.exponentialRampToValueAtTime(0.001,now+0.12);
+
+  synth.connect(synthGain);
+  synthGain.connect(audioContext.destination);
+
+  synth.start(now);
+  synth.stop(now+0.13);
+}
+
+function startMusic(){
+  try{
+    if(!audioContext){
+      audioContext = new (
+        window.AudioContext || window.webkitAudioContext
+      )();
+    }
+
+    audioContext.resume();
+    stopMusic();
+
+    const notes = [
+      55,55,73.42,55,
+      82.41,73.42,55,65.41,
+      55,82.41,73.42,65.41
+    ];
+
+    musicIndex = 0;
+
+    musicTimer = setInterval(()=>{
+      if(!running || !audioContext) return;
+
+      playBassNote(notes[musicIndex%notes.length]);
+      musicIndex++;
+    },140);
+
+  }catch(e){
+    console.log('Audio nicht verfügbar');
+  }
+}
+
+function stopMusic(){
+  if(musicTimer){
+    clearInterval(musicTimer);
+    musicTimer = null;
+  }
+}
+
+// HAUPTSCHLEIFE
+function animate(now){
+  requestAnimationFrame(animate);
+
+  const dt = Math.min((now-lastTime)/1000,0.05);
+  lastTime = now;
+
+  if(running){
+    elapsed += dt;
+
+    // Alle 10 Sekunden schneller
+    speed = 1+Math.floor(elapsed/10)*0.5;
+
+    const timeText = elapsed.toFixed(1)+'s';
+
+    document.getElementById('timer').textContent = timeText;
+    document.getElementById('timerLeft').textContent = timeText;
+    document.getElementById('speed').textContent =
+      'SPEED '+speed.toFixed(1)+'x';
+
+    updatePlayer(dt);
+
+    spawnTimer += dt;
+
+    if(spawnTimer>=nextSpawn){
+      spawnTimer = 0;
+      spawnLaser();
+      nextSpawn = Math.max(0.65,2.5/speed);
+    }
+
+    updateLasers(dt);
+  }
+
+  renderer.render(scene,camera);
+}
+
+requestAnimationFrame(animate);
+
+window.addEventListener('resize',()=>{
+  renderer.setSize(innerWidth,innerHeight);
+  updateCamera();
+});
+
+</script>
+</body>
+  </html>
+  
